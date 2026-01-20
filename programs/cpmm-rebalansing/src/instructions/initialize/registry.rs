@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 #[cfg(feature = "spl-token-only")]
 use anchor_spl::token::Token;
 
-#[cfg(feature = "token-2022")]
+#[cfg(not(feature ="spl-token-only"))]
 use anchor_spl::token_interface::TokenInterface;
 
 use crate::{constants::VAULT_REGISTRY_SEED, state::VaultRegistry, FeeOption};
@@ -26,7 +26,7 @@ pub struct InitializeVaultRegistry<'info> {
     #[cfg(feature = "spl-token-only")]
     pub token_program: Program<'info, Token>,
 
-    #[cfg(feature = "token-2022")]
+    #[cfg(not(feature ="spl-token-only"))]
     pub token_program: Interface<'info, TokenInterface>,
 
     pub system_program: Program<'info, System>,

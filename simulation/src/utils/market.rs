@@ -73,8 +73,8 @@ impl MarketPriceGenerator {
     /// - Volatility 1.5 (150%): Extreme moves ±10-30% (flash crash scenarios)
     ///
     /// # Example
-    /// ```ignore
-    /// // Simulate 1000 blocks (~6.7 minutes) of extreme SOL/USDC volatility
+    /// ```
+    /// use simulation::utils::market::MarketPriceGenerator;
     /// let mut gen = MarketPriceGenerator::new(
     ///     100.0,  // $100 SOL price
     ///     0.8,    // 80% volatility → expect 5-15% price swing in minutes
@@ -97,7 +97,8 @@ impl MarketPriceGenerator {
     /// Helper to convert seconds to time step in years
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use simulation::utils::market::MarketPriceGenerator;
     /// let dt = MarketPriceGenerator::dt_from_seconds(0.4); // Solana block time
     /// ```
     pub fn dt_from_seconds(seconds: f64) -> f64 {

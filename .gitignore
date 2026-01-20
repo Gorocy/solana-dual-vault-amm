@@ -7,3 +7,6 @@ test-ledger
 .yarn
 *.csv
 /simulation/check.sh
+
+!bigquery/*.csv
+!final_output/*.csv

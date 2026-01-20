@@ -137,6 +137,8 @@ where
             user_balances,
         });
 
+        self.env.ctx_mut().next_slot();
+        
         Ok(result)
     }
     

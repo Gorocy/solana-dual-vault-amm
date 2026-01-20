@@ -6,7 +6,7 @@ use anchor_spl::associated_token::AssociatedToken;
 #[cfg(feature = "spl-token-only")]
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
-#[cfg(feature = "token-2022")]
+#[cfg(not(feature = "spl-token-only"))]
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::{
@@ -79,7 +79,7 @@ pub struct InitializeVault<'info> {
     #[cfg(feature = "spl-token-only")]
     pub token_program: Program<'info, Token>,
 
-    #[cfg(feature = "token-2022")]
+    #[cfg(not(feature = "spl-token-only"))]
     pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,

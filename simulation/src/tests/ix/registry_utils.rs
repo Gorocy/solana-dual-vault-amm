@@ -26,14 +26,14 @@ fn test_initialize_vault_registry_success() {
     assert!(result.is_ok(), "Registry initialization should succeed");
     let registry_pda = result.unwrap();
 
-    // Sprawdź czy konto istnieje
+    // Check if the account exists
     let account = ctx.svm.get_account(&registry_pda);
     assert!(
         account.is_some(),
         "Registry account should exist after initialization"
     );
 
-    // Sprawdź właściciela konta
+    // Check account owner and data
     let account_data = account.unwrap();
     assert_eq!(
         account_data.owner,
@@ -41,7 +41,7 @@ fn test_initialize_vault_registry_success() {
         "Registry account should be owned by program"
     );
 
-    // Sprawdź czy konto nie jest puste
+    // Check if the account data is not empty
     assert!(
         !account_data.data.is_empty(),
         "Account data should not be empty"
@@ -94,7 +94,7 @@ fn test_registry_pda_derivation() {
 
     let token_pair = setup_env_with_tokens(&mut ctx);
 
-    // Oblicz oczekiwany PDA
+    // Calculate expected PDA
     let (expected_pda, _) = Pubkey::find_program_address(
         &[
             VAULT_REGISTRY_SEED,
@@ -125,7 +125,7 @@ fn test_initialize_duplicate_registry_fails() {
 
     let token_pair = setup_env_with_tokens(&mut ctx);
 
-    // Pierwsza inicjalizacja
+    // First initialization
     let res1 = RegistryUtils::initialize_vault_registry(
         &mut ctx,
         token_pair.mint_a,
@@ -134,7 +134,7 @@ fn test_initialize_duplicate_registry_fails() {
     );
     assert!(res1.is_ok(), "First initialization should succeed");
 
-    // Druga inicjalizacja (te same minty)
+    // Second initialization (same mints)
     let res2 = RegistryUtils::initialize_vault_registry(
         &mut ctx,
         token_pair.mint_a,
@@ -150,7 +150,7 @@ fn test_initialize_registry_without_program() {
 
     setup_basic_env(&mut ctx);
 
-    // Nie deployujemy programu - resetujemy ctx
+    // We do not deploy the program - reset the ctx
     let mut ctx = SimContext::new();
 
     ctx.airdrop_payer(10_000_000).unwrap();
@@ -175,10 +175,10 @@ fn test_initialize_registry_insufficient_funds() {
     let mut ctx = SimContext::new();
 
     ctx.deploy_program("cpmm_rebalansing", crate::PROGRAM_ID);
-    // Bardzo mała kwota
+    // Very small amount
     ctx.airdrop_payer(1000).unwrap();
 
-    // Próbuj stworzyć minty - może się nie powieść z powodu braku funduszy
+    // Try to create mints - may fail due to insufficient funds
     let mint_result1 = TokenUtils::create_mint(&mut ctx, 6);
     let mint_result2 = TokenUtils::create_mint(&mut ctx, 6);
 
@@ -190,7 +190,7 @@ fn test_initialize_registry_insufficient_funds() {
         let result =
             RegistryUtils::initialize_vault_registry(&mut ctx, mint_a, mint_b, FeeOption::Tier30);
 
-        // Może się nie powieść z powodu braku funduszy
+        // May fail due to insufficient funds
         assert!(
             result.is_err(),
             "Registry initialization with insufficient funds should fail"
@@ -207,13 +207,13 @@ fn test_different_mint_pairs_different_pdas() {
     let (registry1, _, _) = pairs[0];
     let (registry2, _, _) = pairs[1];
 
-    // PDA powinny być różne
+    // PDAs should be different
     assert_ne!(
         registry1, registry2,
         "Different mint pairs should have different PDAs"
     );
 
-    // Oba konta powinny istnieć
+    // Both accounts should exist
     assert!(ctx.svm.get_account(&registry1).is_some());
     assert!(ctx.svm.get_account(&registry2).is_some());
 }
@@ -224,11 +224,11 @@ fn test_fee_option_serialization() {
 
     setup_basic_env(&mut ctx);
 
-    // Test wszystkich opcji fee
+    // Test all fee options
     let fee_options = [FeeOption::Tier30, FeeOption::Tier25, FeeOption::Tier20];
 
     for (i, fee_option) in fee_options.iter().enumerate() {
-        // Użyj różnych mintów dla każdej opcji
+        // Use different mints for each option
         let token_pair = TokenUtils::setup_sorted_mints(&mut ctx);
 
         let result = RegistryUtils::initialize_vault_registry(
@@ -254,7 +254,7 @@ fn test_same_mint_different_fees() {
     ctx.deploy_program("cpmm_rebalansing", crate::PROGRAM_ID);
     let token_pair = TokenUtils::setup_sorted_mints(&mut ctx);
 
-    // Pierwsza inicjalizacja z Tier30
+    // First initialization with Tier30
     let res1 = RegistryUtils::initialize_vault_registry(
         &mut ctx,
         token_pair.mint_a,
@@ -263,7 +263,7 @@ fn test_same_mint_different_fees() {
     );
     assert!(res1.is_ok(), "First initialization should succeed");
 
-    // Druga inicjalizacja z tymi samymi mintami ale innym fee
+    // Second initialization with the same mints but different fee
     let res2 = RegistryUtils::initialize_vault_registry(
         &mut ctx,
         token_pair.mint_a,
@@ -282,7 +282,7 @@ fn test_pda_consistency() {
 
     let token_pair = setup_env_with_tokens(&mut ctx);
 
-    // Oblicz PDA wielokrotnie - powinien być zawsze ten sam
+    // Calculate PDA multiple times - should always be the same
     let (pda1, bump1) = Pubkey::find_program_address(
         &[
             VAULT_REGISTRY_SEED,
@@ -311,7 +311,7 @@ fn test_reversed_mint_order_same_pda() {
 
     let token_pair = setup_env_with_tokens(&mut ctx);
 
-    // Oblicz PDA dla mint_a, mint_b
+    // Calculate PDA for mint_a, mint_b
     let (pda1, _) = Pubkey::find_program_address(
         &[
             VAULT_REGISTRY_SEED,
@@ -321,7 +321,7 @@ fn test_reversed_mint_order_same_pda() {
         &crate::PROGRAM_ID,
     );
 
-    // Oblicz PDA dla mint_b, mint_a (odwrócona kolejność)
+    // Calculate PDA for mint_b, mint_a (reversed order)
     let (pda2, _) = Pubkey::find_program_address(
         &[
             VAULT_REGISTRY_SEED,
@@ -352,7 +352,7 @@ fn test_account_rent_exemption() {
     let pda = result.unwrap();
     let account = ctx.svm.get_account(&pda).unwrap();
 
-    // Sprawdź czy konto jest rent exempt
+    // Check if the account is rent exempt
     assert!(
         account.lamports > 0,
         "Account should have lamports for rent exemption"

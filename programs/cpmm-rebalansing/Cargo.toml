@@ -13,7 +13,6 @@ default = ["spl-token-only", "test_single"]
 hash = []
 test_single = []
 spl-token-only = []
-token-2022 = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
@@ -22,12 +21,11 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
-
+lineup = []
 
 [dependencies]
 anchor-lang = "0.32.1"
 anchor-spl = "0.32.1"
-spl-math = { version = "0.3.0", features = ["no-entrypoint"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

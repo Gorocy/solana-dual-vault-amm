@@ -24,10 +24,10 @@ fn test_dual_swap_a_to_b_success() {
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
     ctx.next_slot();
-    // setup vault 1 (drugi vault w tym samym registry)
+    // setup vault 1 (second vault in the same registry)
     VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // dodaj płynność do obu vaultów
+    // add liquidity to both vaults
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, deposit_a, deposit_b, 1,
     )
@@ -77,7 +77,7 @@ fn test_dual_swap_b_to_a_success() {
     let (_, registry, _, _, user_token_a, user_token_b) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // setup vault 1 (drugi vault w tym samym registry)
+    // setup vault 1 (second vault in the same registry)
     VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
     ManageLiquidityInstruction::add_liquidity_to_vault(
@@ -135,7 +135,7 @@ fn test_dual_swap_min_amount_out_too_high() {
 
     let (_, registry, _, _, _, _) = setup_vault_with_tokens(&mut ctx, 100_000_000, 100_000_000);
 
-    // setup vault 1 (drugi vault w tym samym registry)
+    // setup vault 1 (second vault in the same registry)
     VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
     ManageLiquidityInstruction::add_liquidity_to_vault(
@@ -157,7 +157,7 @@ fn test_dual_swap_min_amount_out_too_high() {
         0,
         1,
         10_000_000,
-        100_000_000, // absurdalnie wysokie
+        100_000_000, // absurdly high
         true,
     );
 

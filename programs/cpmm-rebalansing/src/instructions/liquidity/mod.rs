@@ -99,7 +99,7 @@ pub struct ManageLiquidity<'info> {
     #[cfg(feature = "spl-token-only")]
     pub token_program: Program<'info, Token>,
 
-    #[cfg(feature = "token-2022")]
+    #[cfg(not(feature = "spl-token-only"))]
     pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,

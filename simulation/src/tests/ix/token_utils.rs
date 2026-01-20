@@ -24,7 +24,7 @@ fn test_create_mint_basic() {
     let (mint_pubkey, mint_keypair) = result.unwrap();
     assert_eq!(mint_pubkey, mint_keypair.pubkey());
 
-    // Sprawdź czy mint istnieje w kontekście
+    // Check if the mint exists in the context
     let account = ctx.svm.get_account(&mint_pubkey);
     assert!(account.is_some(), "Mint account should exist");
 
@@ -35,7 +35,7 @@ fn test_create_mint_basic() {
         "Account should be owned by token program"
     );
 
-    // Sprawdź dane mintu
+    // Check mint data
     let mint_data = Mint::unpack(&account.data).expect("Should be able to unpack mint data");
     assert_eq!(mint_data.decimals, decimals, "Decimals should match");
     assert_eq!(
@@ -80,7 +80,7 @@ fn test_create_mint_different_decimals() {
 fn test_create_mint_insufficient_funds() {
     let mut ctx = SimContext::new();
 
-    // Nie robimy airdropa - payer ma 0 lamportów
+    // We do not airdrop - payer has 0 lamports
 
     let result = TokenUtils::create_mint(&mut ctx, 6);
 
@@ -93,12 +93,11 @@ fn test_create_token_account_basic() {
 
     ctx.airdrop_payer(10 * LAMPORTS_PER_SOL).unwrap();
 
-    // Najpierw stwórz mint
+    // First, create a mint
     let (mint_pubkey, _) = TokenUtils::create_mint(&mut ctx, 6).unwrap();
 
     let owner = ctx.payer.pubkey();
-    let initial_amount = 1000000; // 1 token z 6 miejscami dziesiętnymi
-
+    let initial_amount = 1000000; // 1 token with 6 decimal places
     let result = TokenUtils::create_token_account(&mut ctx, &mint_pubkey, owner, initial_amount);
     assert!(result.is_ok(), "Create token account should succeed");
 
@@ -109,7 +108,7 @@ fn test_create_token_account_basic() {
         "Should return correct ATA address"
     );
 
-    // Sprawdź czy konto istnieje
+    // Check if the account exists
     let account = ctx.svm.get_account(&token_account);
     assert!(account.is_some(), "Token account should exist");
 
@@ -120,7 +119,7 @@ fn test_create_token_account_basic() {
         "Account should be owned by token program"
     );
 
-    // Sprawdź dane konta tokenu
+    // Check token account data
     let token_data =
         Account::unpack(&account.data).expect("Should be able to unpack token account data");
     assert_eq!(token_data.mint, mint_pubkey, "Mint should match");
@@ -204,20 +203,20 @@ fn test_setup_sorted_mints() {
 
     let token_pair = TokenUtils::setup_sorted_mints(&mut ctx);
 
-    // Sprawdź sortowanie: mint_a > mint_b
+    // Check sorting: mint_a > mint_b
     assert!(
         token_pair.mint_a > token_pair.mint_b,
         "mint_a should be greater than mint_b"
     );
 
-    // Sprawdź czy oba minty istnieją
+    // Check if both mints exist
     let mint_a_account = ctx.svm.get_account(&token_pair.mint_a);
     let mint_b_account = ctx.svm.get_account(&token_pair.mint_b);
 
     assert!(mint_a_account.is_some(), "mint_a should exist");
     assert!(mint_b_account.is_some(), "mint_b should exist");
 
-    // Sprawdź czy są to prawidłowe minty
+    // Check if these are valid mints
     let mint_a_data = Mint::unpack(&mint_a_account.unwrap().data).unwrap();
     let mint_b_data = Mint::unpack(&mint_b_account.unwrap().data).unwrap();
 
@@ -234,13 +233,13 @@ fn test_setup_sorted_mints_multiple_calls() {
     let pair1 = TokenUtils::setup_sorted_mints(&mut ctx);
     let pair2 = TokenUtils::setup_sorted_mints(&mut ctx);
 
-    // Każde wywołanie powinno tworzyć różne minty
+    // Each call should create different mints
     assert_ne!(pair1.mint_a, pair2.mint_a);
     assert_ne!(pair1.mint_b, pair2.mint_b);
     assert_ne!(pair1.mint_a, pair2.mint_b);
     assert_ne!(pair1.mint_b, pair2.mint_a);
 
-    // Ale każda para powinna być posortowana
+    // But each pair should be sorted
     assert!(pair1.mint_a > pair1.mint_b);
     assert!(pair2.mint_a > pair2.mint_b);
 }
@@ -265,12 +264,12 @@ fn test_multiple_token_accounts_same_mint() {
 
     let account3 = TokenUtils::create_token_account(&mut ctx, &mint_pubkey, owner3, 0).unwrap();
 
-    // Wszystkie konta powinny być różne
+    // All accounts should be different
     assert_ne!(account1, account2);
     assert_ne!(account2, account3);
     assert_ne!(account1, account3);
 
-    // Sprawdź balanse
+    // Check balances
     let acc1_data = Account::unpack(&ctx.svm.get_account(&account1).unwrap().data).unwrap();
     let acc2_data = Account::unpack(&ctx.svm.get_account(&account2).unwrap().data).unwrap();
     let acc3_data = Account::unpack(&ctx.svm.get_account(&account3).unwrap().data).unwrap();
@@ -279,7 +278,7 @@ fn test_multiple_token_accounts_same_mint() {
     assert_eq!(acc2_data.amount, 2000000);
     assert_eq!(acc3_data.amount, 0);
 
-    // Wszystkie powinny mieć ten sam mint
+    // All should have the same mint
     assert_eq!(acc1_data.mint, mint_pubkey);
     assert_eq!(acc2_data.mint, mint_pubkey);
     assert_eq!(acc3_data.mint, mint_pubkey);
@@ -294,19 +293,19 @@ fn test_create_token_account_already_exists() {
     let (mint_pubkey, _) = TokenUtils::create_mint(&mut ctx, 6).unwrap();
     let owner = ctx.payer.pubkey();
 
-    // Stwórz konto pierwszy raz
+    // Create the account for the first time
     let result1 = TokenUtils::create_token_account(&mut ctx, &mint_pubkey, owner, 1000000);
     assert!(result1.is_ok(), "First creation should succeed");
 
-    // Próbuj stworzyć to samo konto ponownie
+    // Try to create the same account again
     let result2 = TokenUtils::create_token_account(&mut ctx, &mint_pubkey, owner, 2000000);
 
-    // To może się nie powieść lub powieść w zależności od implementacji ATA
-    // Jeśli się powiedzie, sprawdź czy balans się nie zmienił
+    // This may fail or succeed depending on the ATA implementation
+    // If it succeeds, check if the balance did not change
     if result2.is_ok() {
         let account = ctx.svm.get_account(&result1.unwrap()).unwrap();
         let token_data = Account::unpack(&account.data).unwrap();
-        // Balans powinien pozostać oryginalny (ATA już istniało)
+        // The balance should remain original (ATA already existed)
         assert_eq!(token_data.amount, 1000000, "Balance should remain original");
     }
 }
@@ -324,10 +323,10 @@ fn test_rent_exemption() {
     let final_balance = ctx.svm.get_account(&ctx.payer.pubkey()).unwrap().lamports;
     let cost = initial_balance - final_balance;
 
-    // Koszt powinien być większy od 0 (rent + fees)
+    // Cost should be greater than 0 (rent + fees)
     assert!(cost > 0, "Creating mint should cost lamports");
 
-    // Sprawdź czy mint konto jest rent exempt
+    // Check if the mint account is rent exempt
     let mint_account = ctx.svm.get_account(&mint_pubkey).unwrap();
     let rent_exempt_minimum = ctx.svm.minimum_balance_for_rent_exemption(Mint::LEN);
 

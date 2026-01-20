@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 #[cfg(feature = "spl-token-only")]
 use anchor_spl::token::Token;
 
-#[cfg(feature = "token-2022")]
+#[cfg(not(feature = "spl-token-only"))]
 use anchor_spl::token_interface::TokenInterface;
 
 use anchor_spl::token_interface::{Mint, TokenAccount};
@@ -94,7 +94,7 @@ pub struct SwapDualDeterministic<'info> {
     #[cfg(feature = "spl-token-only")]
     pub token_program: Program<'info, Token>,
 
-    #[cfg(feature = "token-2022")]
+    #[cfg(not(feature = "spl-token-only"))]
     pub token_program: Interface<'info, TokenInterface>,
 }
 

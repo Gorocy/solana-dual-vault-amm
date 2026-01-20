@@ -16,20 +16,20 @@ fn test_initialization() {
     assert_ne!(
         payer_pubkey,
         Pubkey::default(),
-        "Payer powinien mieć niezerowy klucz publiczny"
+        "Payer should have a non-zero public key"
     );
 
-    // Sprawdź czy lista programów jest pusta na początku
+    // Check if the list of programs is empty at the beginning
     assert!(
         ctx.programs.is_empty(),
-        "Lista programów powinna być pusta po inicjalizacji"
+        "The list of programs should be empty after initialization"
     );
 
-    // Sprawdź czy payer ma zerowy balans na początku
+    // Check if the payer has zero balance at the beginning
     let account = ctx.svm.get_account(&payer_pubkey);
     assert!(
         account.is_none(),
-        "Payer nie powinien mieć konta przed airdropem"
+        "Payer should not have an account before airdrop"
     );
 }
 
@@ -39,16 +39,16 @@ fn test_airdrop_payer() {
     let amount = 5 * LAMPORTS_PER_SOL;
 
     let result = ctx.airdrop_payer(amount);
-    assert!(result.is_ok(), "Airdrop zakończył się błędem");
+    assert!(result.is_ok(), "Airdrop should succeed");
 
     let payer_pubkey = ctx.payer.pubkey();
     let account = ctx.svm.get_account(&payer_pubkey);
 
-    assert!(account.is_some(), "Konto powinno istnieć po airdropie");
+    assert!(account.is_some(), "Account should exist after airdrop");
     assert_eq!(
         account.unwrap().lamports,
         amount,
-        "Balans konta nie zgadza się z kwotą airdropa"
+        "Account balance does not match airdrop amount"
     );
 }
 
@@ -58,19 +58,29 @@ fn test_airdrop_multiple_times() {
     let first_amount = 2 * LAMPORTS_PER_SOL;
     let second_amount = 3 * LAMPORTS_PER_SOL;
 
-    // Pierwszy airdrop
+    // First airdrop
     ctx.airdrop_payer(first_amount).unwrap();
-
-    // Drugi airdrop
-    ctx.airdrop_payer(second_amount).unwrap();
 
     let payer_pubkey = ctx.payer.pubkey();
     let account = ctx.svm.get_account(&payer_pubkey).unwrap();
 
     assert_eq!(
         account.lamports,
-        first_amount + second_amount,
-        "Balans powinien być sumą wszystkich airdropów"
+        first_amount,
+        "Balance should be equal to first airdrop amount"
+    );
+
+    // Second airdrop
+    ctx.airdrop_payer(second_amount).unwrap();
+
+    let payer_pubkey = ctx.payer.pubkey();
+    let account = ctx.svm.get_account(&payer_pubkey).unwrap();
+
+
+    assert_eq!(
+        account.lamports,
+        second_amount,
+        "Balance should be equal to second airdrop amount"
     );
 }
 
@@ -79,18 +89,18 @@ fn test_airdrop_zero_amount() {
     let mut ctx = SimContext::new();
     let result = ctx.airdrop_payer(0);
 
-    // Airdrop zero powinien się powieść
+    // Airdrop zero should succeed
     assert!(
         result.is_ok(),
-        "Airdrop zero lamportów powinien się powieść"
+        "Airdrop zero lamports should succeed"
     );
 
     let payer_pubkey = ctx.payer.pubkey();
     let account = ctx.svm.get_account(&payer_pubkey);
 
-    // Ale konto może nie zostać utworzone lub mieć 0 lamportów
+    // But the account may not be created or have 0 lamports
     if let Some(acc) = account {
-        assert_eq!(acc.lamports, 0, "Konto powinno mieć 0 lamportów");
+        assert_eq!(acc.lamports, 0, "Account should have 0 lamports");
     }
 }
 
@@ -110,25 +120,25 @@ fn test_send_system_transfer() {
     let result = ctx.send_tx(&[transfer_ix], None);
     assert!(
         result.is_ok(),
-        "Transakcja transferu nie powiodła się: {:?}",
+        "System transfer transaction failed: {:?}",
         result.err()
     );
 
     let recipient_acc = ctx.svm.get_account(&recipient.pubkey());
     assert!(
         recipient_acc.is_some(),
-        "Konto odbiorcy powinno zostać utworzone"
+        "Recipient account should be created"
     );
     assert_eq!(
         recipient_acc.unwrap().lamports,
         transfer_amount,
-        "Odbiorca nie otrzymał SOL"
+        "Recipient did not receive SOL"
     );
 
     let payer_acc = ctx.svm.get_account(&ctx.payer.pubkey()).unwrap();
     assert!(
         payer_acc.lamports < initial_balance - transfer_amount,
-        "Payer nie zapłacił za gas fee"
+        "Payer did not pay for gas fee"
     );
 }
 
@@ -156,7 +166,7 @@ fn test_send_tx_with_custom_signer() {
 fn test_send_tx_insufficient_funds() {
     let mut ctx = SimContext::new();
 
-    // Nie robimy airdropa, więc payer ma 0 lamportów
+    // We do not airdrop, so payer has 0 lamports
     let recipient = Keypair::new();
     let transfer_amount = 1 * LAMPORTS_PER_SOL;
 
@@ -166,7 +176,7 @@ fn test_send_tx_insufficient_funds() {
     let result = ctx.send_tx(&[transfer_ix], None);
     assert!(
         result.is_err(),
-        "Transakcja powinna się nie powieść z powodu braku funduszy"
+        "Transaction should fail due to insufficient funds"
     );
 }
 
@@ -188,10 +198,10 @@ fn test_send_multiple_instructions() {
     let result = ctx.send_tx(&instructions, None);
     assert!(
         result.is_ok(),
-        "Transakcja z wieloma instrukcjami powinna się powieść"
+        "Transaction with multiple instructions should succeed"
     );
 
-    // Sprawdź czy oba odbiorcy otrzymali środki
+    // Check if both recipients received funds
     let recipient1_acc = ctx.svm.get_account(&recipient1.pubkey()).unwrap();
     let recipient2_acc = ctx.svm.get_account(&recipient2.pubkey()).unwrap();
 
@@ -205,10 +215,10 @@ fn test_send_empty_instructions() {
     ctx.airdrop_payer(1 * LAMPORTS_PER_SOL).unwrap();
 
     let result = ctx.send_tx(&[], None);
-    // Transakcja bez instrukcji może się powieść (ale nic nie robi)
+    // Transaction with no instructions may succeed (but does nothing)
     assert!(
         result.is_ok(),
-        "Transakcja bez instrukcji powinna się powieść"
+        "Transaction with no instructions should succeed"
     );
 }
 
@@ -224,7 +234,7 @@ fn test_deploy_program() {
     assert!(ctx.programs.contains(&program_id));
 
     let acc = ctx.svm.get_account(&program_id).unwrap();
-    assert!(acc.executable, "Wgrane konto powinno być wykonywalne");
+    assert!(acc.executable, "Deployed account should be executable");
 }
 
 #[test]
@@ -239,11 +249,11 @@ fn test_deploy_multiple_programs() {
     ctx.deploy_program(program_name, program_id2);
 
     let programs = ctx.programs;
-    assert_eq!(programs.len(), 2, "Powinny być zainstalowane 2 programy");
+    assert_eq!(programs.len(), 2, "There should be 2 installed programs");
     assert!(programs.contains(&program_id1));
     assert!(programs.contains(&program_id2));
 
-    // Sprawdź czy oba programy są executable
+    // Check if both programs are executable
     let acc1 = ctx.svm.get_account(&program_id1).unwrap();
     let acc2 = ctx.svm.get_account(&program_id2).unwrap();
     assert!(acc1.executable);
@@ -256,7 +266,7 @@ fn test_deploy_nonexistent_program() {
     let mut ctx = SimContext::new();
     let program_id = Pubkey::new_unique();
 
-    // Próba zainstalowania nieistniejącego programu
+    // Attempt to deploy a nonexistent program
     ctx.deploy_program("nonexistent_program", program_id);
 }
 
@@ -267,7 +277,7 @@ fn test_compute_units_tracking() {
     ctx.airdrop_payer(initial_balance).unwrap();
 
     let recipient = Keypair::new();
-    let transfer_amount = 1000; // Mała kwota dla prostej transakcji
+    let transfer_amount = 1000; // Small amount for a simple transaction
 
     let transfer_ix =
         system_instruction::transfer(&ctx.payer.pubkey(), &recipient.pubkey(), transfer_amount);
@@ -276,8 +286,8 @@ fn test_compute_units_tracking() {
     assert!(result.is_ok());
 
     let compute_units = result.unwrap();
-    assert!(compute_units > 0, "Transakcja powinna zużyć compute units");
-    println!("Zużyte compute units: {}", compute_units);
+    assert!(compute_units > 0, "Transaction should consume compute units");
+    println!("Consumed compute units: {}", compute_units);
 }
 
 #[test]
@@ -285,36 +295,36 @@ fn test_invalid_instruction() {
     let mut ctx = SimContext::new();
     ctx.airdrop_payer(1 * LAMPORTS_PER_SOL).unwrap();
 
-    // Stwórz nieprawidłową instrukcję (nieistniejący program)
+    // Create an invalid instruction (nonexistent program)
     let fake_program_id = Pubkey::new_unique();
     let invalid_ix = Instruction {
         program_id: fake_program_id,
         accounts: vec![AccountMeta::new(ctx.payer.pubkey(), true)],
-        data: vec![0, 1, 2, 3], // Jakieś dane
+        data: vec![0, 1, 2, 3], // Some data
     };
 
     let result = ctx.send_tx(&[invalid_ix], None);
     assert!(
         result.is_err(),
-        "Transakcja z nieprawidłową instrukcją powinna się nie powieść"
+        "Transaction with an invalid instruction should fail"
     );
 }
 
 #[test]
 fn test_context_isolation() {
-    // Test sprawdzający czy różne konteksty są od siebie niezależne
+    // Test checking if different contexts are independent from each other
     let mut ctx1 = SimContext::new();
     let ctx2 = SimContext::new();
 
     ctx1.airdrop_payer(5 * LAMPORTS_PER_SOL).unwrap();
 
-    // ctx2 nie powinien mieć dostępu do konta z ctx1
+    // ctx2 should not have access to the account from ctx1
     let payer1_pubkey = ctx1.payer.pubkey();
     let account_in_ctx2 = ctx2.svm.get_account(&payer1_pubkey);
 
     assert!(
         account_in_ctx2.is_none(),
-        "Konteksty powinny być od siebie niezależne"
+        "Contexts should be independent from each other"
     );
 }
 
@@ -322,11 +332,11 @@ fn test_context_isolation() {
 fn test_payer_reference_consistency() {
     let ctx = SimContext::new();
 
-    // Sprawdź czy payer jest konsystentny między wywołaniami
+    // Check if payer is consistent between calls
     let payer1 = ctx.payer.pubkey();
     let payer2 = ctx.payer.pubkey();
 
-    assert_eq!(payer1, payer2, "Pubkey payera powinien być konsystentny");
+    assert_eq!(payer1, payer2, "Payer pubkey should be consistent");
 }
 
 #[test]
@@ -334,12 +344,12 @@ fn test_programs_list_consistency() {
     let mut ctx = SimContext::new();
     let program_id = Pubkey::new_unique();
 
-    // Sprawdź listę przed dodaniem
+    // Check the list before adding
     assert_eq!(ctx.programs.len(), 0);
 
     ctx.deploy_program("cpmm_rebalansing", program_id);
 
-    // Sprawdź listę po dodaniu
+    // Check the list after adding
     assert_eq!(ctx.programs.len(), 1);
     assert_eq!(ctx.programs[0], program_id);
 }

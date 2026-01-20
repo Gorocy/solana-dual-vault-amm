@@ -22,7 +22,7 @@ fn test_single_swap_a_to_b_success() {
     let (_, registry, _, _, user_token_a, user_token_b) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // Dodaj płynność
+    // Add liquidity to the vault
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, deposit_a, deposit_b, 1,
     )

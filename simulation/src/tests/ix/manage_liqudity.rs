@@ -10,19 +10,19 @@ use crate::{
     },
 };
 
-/// Helper: Setupuje pełne środowisko z vaultem gotowym do zarządzania płynnością
-/// Zwraca: (Vault PDA, Registry PDA, Mint A, Mint B, User Token A Account, User Token B Account)
+/// Helper: Setup full environment with a vault ready for liquidity management
+/// Returns: (Vault PDA, Registry PDA, Mint A, Mint B, User Token A Account, User Token B Account)
 pub fn setup_vault_with_tokens(
     ctx: &mut SimContext,
     user_balance_a: u64,
     user_balance_b: u64,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey, Pubkey, Pubkey) {
     let (registry, mint_a, mint_b) = setup_env_with_registry(ctx);
-    // Stwórz vault
+    // Create vault
     let vault_pda =
         VaultUtils::init_vault(ctx, crate::PROGRAM_ID, registry).expect("Failed to create vault");
 
-    // Stwórz user token accounts z balansami
+    // Create user token accounts with balances
     let payer = ctx.payer.pubkey();
     let user_token_a = TokenUtils::create_token_account(ctx, &mint_a, payer, user_balance_a)
         .expect("Failed to create user token A account");
@@ -53,7 +53,7 @@ fn test_add_liquidity_to_vault_success() {
     let amount_a = 5_000_000; // 5 tokens
     let amount_b = 10_000_000; // 10 tokens
 
-    // Dodaj płynność
+    // Add liquidity
     let result = ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, // vault_index
         amount_a, amount_b, 1,
@@ -61,7 +61,7 @@ fn test_add_liquidity_to_vault_success() {
 
     assert!(result.is_ok(), "Add liquidity should succeed");
 
-    // Sprawdź balanse użytkownika po dodaniu płynności
+    // Check user balances after adding liquidity
     let user_account_a = ctx.svm.get_account(&user_token_a).unwrap();
     let user_account_b = ctx.svm.get_account(&user_token_b).unwrap();
 
@@ -79,7 +79,7 @@ fn test_add_liquidity_to_vault_success() {
         "User should have less token B after adding liquidity"
     );
 
-    // Sprawdź rezerwy vaultu
+    // Check vault reserves
     let (reserve_a, reserve_b) =
         VaultUtils::get_vault_reserves(&mut ctx, vault_pda, mint_a, mint_b).unwrap();
 
@@ -97,8 +97,8 @@ fn test_add_liquidity_insufficient_balance() {
     let (_, registry, _, _, _, _) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    let amount_a = 5_000_000; // 5 tokens - więcej niż user ma
-    let amount_b = 10_000_000; // 10 tokens - więcej niż user ma
+    let amount_a = 5_000_000; // 5 tokens - more than user has
+    let amount_b = 10_000_000; // 10 tokens - more than user has
 
     let result = ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, amount_a, amount_b, 1,
@@ -143,7 +143,7 @@ fn test_add_liquidity_nonexistent_vault() {
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
     let result = ManageLiquidityInstruction::add_liquidity_to_vault(
-        &mut ctx, None, registry, 99, // nieistniejący vault index
+        &mut ctx, None, registry, 99, // nonexistent vault index
         5_000_000, 10_000_000, 1,
     );
 
@@ -166,7 +166,7 @@ fn test_remove_liquidity_from_vault_success() {
     let add_amount_a = 10_000_000;
     let add_amount_b = 20_000_000;
 
-    // Najpierw dodaj płynność
+    // First, add liquidity
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx,
         None,
@@ -180,7 +180,7 @@ fn test_remove_liquidity_from_vault_success() {
 
     ctx.next_slot();
 
-    // Sprawdź czy user dostał LP tokeny
+    // Check if user received LP tokens
     let lp_mint_pda = VaultUtils::get_vault_lp_mint(vault_pda).unwrap();
     let user_lp_token = get_associated_token_address(&ctx.payer.pubkey(), &lp_mint_pda);
 
@@ -194,8 +194,8 @@ fn test_remove_liquidity_from_vault_success() {
     let lp_balance = user_lp_data.amount;
     assert!(lp_balance > 0, "User should have some LP tokens");
 
-    // Teraz usuń część płynności
-    let remove_lp_amount = lp_balance / 2; // usuń połowę
+    // Now remove some liquidity
+    let remove_lp_amount = lp_balance / 2; // remove half
     let result = ManageLiquidityInstruction::remove_liquidity_from_vault(
         &mut ctx,
         None,
@@ -208,7 +208,7 @@ fn test_remove_liquidity_from_vault_success() {
 
     assert!(result.is_ok(), "Remove liquidity should succeed");
 
-    // Sprawdź balanse po usunięciu płynności
+    // Check balances after removing liquidity
     let user_account_a_after = ctx.svm.get_account(&user_token_a).unwrap();
     let user_account_b_after = ctx.svm.get_account(&user_token_b).unwrap();
 
@@ -235,9 +235,9 @@ fn test_remove_liquidity_insufficient_lp_tokens() {
     let (_, registry, _, _, _, _) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // Próbuj usunąć płynność bez dodania jej wcześniej
+    // Try to remove liquidity without adding it first
     let result = ManageLiquidityInstruction::remove_liquidity_from_vault(
-        &mut ctx, None, registry, 0, 1_000_000, // LP amount user nie ma
+        &mut ctx, None, registry, 0, 1_000_000, // LP amount user does not have
         1, 1,
     );
 
@@ -257,13 +257,13 @@ fn test_remove_liquidity_zero_amount() {
     let (_, registry, _, _, _, _) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // Dodaj trochę płynności
+    // Add some liquidity
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, 10_000_000, 20_000_000, 1,
     )
     .expect("Adding liquidity should succeed");
 
-    // Próbuj usunąć zero LP tokenów
+    // Try to remove zero LP tokens
     let result = ManageLiquidityInstruction::remove_liquidity_from_vault(
         &mut ctx, None, registry, 0, 0, // zero LP amount
         1, 1,
@@ -279,42 +279,42 @@ fn test_remove_liquidity_zero_amount() {
 fn test_multiple_liquidity_operations() {
     let mut ctx = SimContext::new();
 
-    let user_balance_a = 100_000_000; // 100 tokens
-    let user_balance_b = 200_000_000; // 200 tokens
+    let user_balance_a = 100_000_000;
+    let user_balance_b = 200_000_000;
 
     let (vault_pda, registry, mint_a, mint_b, user_token_a, _) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // Pierwsze dodanie płynności
+    // First add liquidity
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, 20_000_000, 40_000_000, 1,
     )
     .expect("First add liquidity should succeed");
 
     ctx.next_slot();
-
-    // Drugie dodanie płynności
+    
+    // Second add liquidity
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, 30_000_000, 60_000_000, 1,
     )
     .expect("Second add liquidity should succeed");
 
-    // Sprawdź rezerwy vaultu
+    // Check vault reserves
     let (reserve_a, reserve_b) =
         VaultUtils::get_vault_reserves(&mut ctx, vault_pda, mint_a, mint_b).unwrap();
 
     assert_eq!(reserve_a, 50_000_000, "Vault should have total token A");
     assert_eq!(reserve_b, 100_000_000, "Vault should have total token B");
 
-    // Sprawdź LP balance
+    // Check LP balance
     let lp_mint_pda = VaultUtils::get_vault_lp_mint(vault_pda).unwrap();
     let user_lp_token = get_associated_token_address(&ctx.payer.pubkey(), &lp_mint_pda);
     let user_lp_account = ctx.svm.get_account(&user_lp_token).unwrap();
     let user_lp_data = TokenAccount::unpack(&user_lp_account.data).unwrap();
     let total_lp_balance = user_lp_data.amount;
 
-    // Usuń część płynności
-    let remove_amount = total_lp_balance / 4; // usuń 1/4
+    // Remove some liquidity
+    let remove_amount = total_lp_balance / 4; // remove 1/4
     ManageLiquidityInstruction::remove_liquidity_from_vault(
         &mut ctx,
         None,
@@ -326,7 +326,7 @@ fn test_multiple_liquidity_operations() {
     )
     .expect("Remove liquidity should succeed");
 
-    // Sprawdź finalne balanse
+    // Check vault reserves after removal
     let (final_reserve_a, final_reserve_b) =
         VaultUtils::get_vault_reserves(&mut ctx, vault_pda, mint_a, mint_b).unwrap();
 
@@ -343,7 +343,7 @@ fn test_multiple_liquidity_operations() {
 
     let final_user_token_data_a = TokenAccount::unpack(&final_user_account_a.data).unwrap();
 
-    // User powinien mieć więcej niż po dodaniu płynności, ale mniej niż na początku
+    // User should have more than after adding liquidity, but less than at the beginning
     assert!(
         final_user_token_data_a.amount < user_balance_a,
         "User should have less than initial"
@@ -388,21 +388,21 @@ fn test_remove_liquidity_high_min_amounts() {
     let (_, registry, _, _, _, _) =
         setup_vault_with_tokens(&mut ctx, user_balance_a, user_balance_b);
 
-    // Dodaj płynność
+    // Add some liquidity
     ManageLiquidityInstruction::add_liquidity_to_vault(
         &mut ctx, None, registry, 0, 20_000_000, 40_000_000, 1,
     )
     .expect("Adding liquidity should succeed");
 
-    // Próbuj usunąć z bardzo wysokimi min_amounts
+    // Try to remove with very high min_amounts
     let result = ManageLiquidityInstruction::remove_liquidity_from_vault(
         &mut ctx,
         None,
         registry,
         0,
-        1_000,       // mała ilość LP
-        50_000_000,  // bardzo wysokie min_amount_a
-        100_000_000, // bardzo wysokie min_amount_b
+        1_000,       // small amount of LP
+        50_000_000,  // very high min_amount_a
+        100_000_000, // very high min_amount_b
     );
 
     assert!(

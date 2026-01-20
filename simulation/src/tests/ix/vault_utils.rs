@@ -40,22 +40,22 @@ fn test_vault_token_accounts_created() {
 
     let vault_pda = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // Sprawdź czy helpery znajdują adresy
+    // Check token accounts
     let token_a_addr = VaultUtils::get_vault_token_account(vault_pda, mint_a).unwrap();
     let token_b_addr = VaultUtils::get_vault_token_account(vault_pda, mint_b).unwrap();
 
-    // Sprawdź czy konta faktycznie istnieją w SVM
+    // Check if accounts actually exist in SVM
     let acc_a = ctx.svm.get_account(&token_a_addr);
     let acc_b = ctx.svm.get_account(&token_b_addr);
 
     assert!(acc_a.is_some(), "Token A account should exist");
     assert!(acc_b.is_some(), "Token B account should exist");
 
-    // Sprawdź właściciela (musi być SPL Token Program)
+    // Check owner (must be SPL Token Program)
     assert_eq!(acc_a.unwrap().owner, spl_token::id());
     assert_eq!(acc_b.unwrap().owner, spl_token::id());
 
-    // Sprawdź rezerwy (powinny być 0)
+    // Check reserves (should be 0)
     let (res_a, res_b) = VaultUtils::get_vault_reserves(&ctx, vault_pda, mint_a, mint_b).unwrap();
 
     assert_eq!(res_a, 0, "Initial reserve A should be 0");
@@ -70,12 +70,12 @@ fn test_vault_lp_mint_created() {
 
     let vault_pda = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // Weryfikacja LP Mintu
+    // Check LP Mint
     let lp_mint_pda = VaultUtils::get_vault_lp_mint(vault_pda).unwrap();
     let lp_acc = ctx.svm.get_account(&lp_mint_pda);
     assert!(lp_acc.is_some(), "LP Mint account should exist");
 
-    // Sprawdzenie danych Mintu LP
+    // Check LP Mint data
     let account_data = lp_acc.unwrap();
     assert_eq!(
         account_data.owner,
@@ -100,13 +100,12 @@ fn test_vault_pda_derivation_match() {
     let (registry, _mint_a, _mint_b) = setup_env_with_registry(&mut ctx);
     let vault_id: u8 = 0;
 
-    // Ręczna derywacja PDA
+    // Manual PDA derivation
     let (expected_vault_pda, _) = Pubkey::find_program_address(
         &[VAULT_SEED, registry.as_ref(), &vault_id.to_le_bytes()],
         &crate::PROGRAM_ID,
     );
 
-    // Wywołanie utilsów
     let actual_vault_pda = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
     assert_eq!(
@@ -123,11 +122,11 @@ fn test_lp_mint_pda_derivation() {
 
     let vault_pda = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // Ręczna derywacja LP mint PDA
+    // Manual derivation of LP mint PDA
     let (expected_lp_mint, _) =
         Pubkey::find_program_address(&[LP_TOKEN_SEED, vault_pda.as_ref()], &crate::PROGRAM_ID);
 
-    // Wywołanie helpersa
+    // Call helper
     let actual_lp_mint = VaultUtils::get_vault_lp_mint(vault_pda).unwrap();
 
     assert_eq!(
@@ -151,12 +150,12 @@ fn test_initialize_multiple_vaults_same_registry() {
     // Vault #2
     let vault_2 = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // Wszystkie PDAs powinny być różne
+    // All PDAs should be different
     assert_ne!(vault_0, vault_1);
     assert_ne!(vault_1, vault_2);
     assert_ne!(vault_0, vault_2);
 
-    // Sprawdź czy wszystkie konta istnieją
+    // Check if all accounts exist
     assert!(ctx.svm.get_account(&vault_0).is_some());
     assert!(ctx.svm.get_account(&vault_1).is_some());
     assert!(ctx.svm.get_account(&vault_2).is_some());
@@ -170,7 +169,7 @@ fn test_vault_initialization_without_registry() {
 
     let _token_pair = TokenUtils::setup_sorted_mints(&mut ctx);
 
-    // Używamy fake registry PDA (nie zainicjalizowany)
+    // Use a fake registry PDA (not initialized)
     let fake_registry = Pubkey::new_unique();
 
     let result = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, fake_registry);
@@ -186,10 +185,10 @@ fn test_vault_initialization_insufficient_funds() {
     let mut ctx = SimContext::new();
 
     ctx.deploy_program("cpmm_rebalansing", crate::PROGRAM_ID);
-    // Bardzo mało lamportów
+    // Very few lamports
     ctx.airdrop_payer(1000).unwrap();
 
-    // Próbuj stworzyć minty - może się nie powieść z powodu braku funduszy
+    // Try to create mints - may fail due to insufficient funds
     let mint_result1 = TokenUtils::create_mint(&mut ctx, 6);
     let mint_result2 = TokenUtils::create_mint(&mut ctx, 6);
 
@@ -203,7 +202,7 @@ fn test_vault_initialization_insufficient_funds() {
         {
             let result = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry);
 
-            // Może się nie powieść z powodu braku funduszy na vault
+            // May fail due to insufficient funds for vault
             assert!(
                 result.is_err(),
                 "Vault initialization with insufficient funds should fail"
@@ -253,14 +252,14 @@ fn test_get_vault_token_account_addresses() {
     let token_a_addr = VaultUtils::get_vault_token_account(vault_pda, mint_a).unwrap();
     let token_b_addr = VaultUtils::get_vault_token_account(vault_pda, mint_b).unwrap();
 
-    // Sprawdź czy adresy są poprawne (ATA)
+    // Check if addresses are correct (ATA)
     let expected_a = get_associated_token_address(&vault_pda, &mint_a);
     let expected_b = get_associated_token_address(&vault_pda, &mint_b);
 
     assert_eq!(token_a_addr, expected_a, "Token A address should be ATA");
     assert_eq!(token_b_addr, expected_b, "Token B address should be ATA");
 
-    // Sprawdź czy adresy są różne
+    // Check if addresses are different
     assert_ne!(
         token_a_addr, token_b_addr,
         "Token accounts should be different"
@@ -276,12 +275,12 @@ fn test_vault_with_different_mint_pairs() {
     let (registry1, _mint_a1, _mint_b1) = pairs[0];
     let (registry2, _mint_a2, _mint_b2) = pairs[1];
 
-    // Vaults dla różnych par
+    // Vaults for different pairs
     let vault1 = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry1).unwrap();
 
     let vault2 = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry2).unwrap();
 
-    // Vaults powinny być różne
+    // Vaults should be different
     assert_ne!(vault1, vault2);
 
     // LP minty powinny być różne
@@ -298,14 +297,14 @@ fn test_vault_accounts_rent_exemption() {
 
     let vault_pda = VaultUtils::init_vault(&mut ctx, crate::PROGRAM_ID, registry).unwrap();
 
-    // Sprawdź czy vault jest rent exempt
+    // Check if vault is rent exempt
     let vault_account = ctx.svm.get_account(&vault_pda).unwrap();
     assert!(
         vault_account.lamports > 0,
         "Vault should have lamports for rent"
     );
 
-    // Sprawdź LP mint
+    // Check LP mint
     let lp_mint_pda = VaultUtils::get_vault_lp_mint(vault_pda).unwrap();
     let lp_account = ctx.svm.get_account(&lp_mint_pda).unwrap();
     assert!(
@@ -313,7 +312,7 @@ fn test_vault_accounts_rent_exemption() {
         "LP mint should have lamports for rent"
     );
 
-    // Sprawdź token accounts
+    // Check token accounts
     let token_a_addr = VaultUtils::get_vault_token_account(vault_pda, mint_a).unwrap();
     let token_b_addr = VaultUtils::get_vault_token_account(vault_pda, mint_b).unwrap();
 

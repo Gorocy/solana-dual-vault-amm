@@ -29,7 +29,7 @@ pub const MIN_SWAP_PERCENTAGE: f64 = 0.1;
 pub const MAX_SWAP_PERCENTAGE: f64 = 0.3;
 pub const SIMULATION_SEED: u64 = 42;
 pub const ARBITRAGEUR_COUNT: u8 = VAULTS_FOR_SIMULATION;
-pub const ENABLE_ARBITRAGEURS: bool = true;
+pub const ENABLE_ARBITRAGEURS: bool = false;
 pub const FEE_OPTION_BASE: u64 = 30;
 
 pub const DEFAULT_OUTPUT_FILE: &str = "vault_reserves.csv";
