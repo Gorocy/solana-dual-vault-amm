@@ -31,15 +31,19 @@ impl SwapUtilsVirtualVault {
         // 2. Calculate Fee and Net Input
         let (amount_in_net, fee_v1, fee_v2) =
             Self::calculate_fee_split(amount_in_raw, fee_rate, l1, l2, l_total)?;
-        // 3. Calculate Virtual Output (using combined reserves)
-        let total_output = Self::calculate_virtual_output(amount_in_net, vault1, vault2)?;
+//         // 3. Calculate Virtual Output (using combined reserves)
+//         let total_output = Self::calculate_virtual_output(amount_in_net, vault1, vault2)?;
 
-        // 4. Calculate Optimal Input Split (Rebalancing)
+        // 3. Calculate Optimal Input Split (Rebalancing)
         let (in_v1, in_v2) = Self::calculate_optimal_input_split(amount_in_net, l1, l2, l_total, vault1, vault2)?;
 
-        // 5. Calculate Output Split (Proportional to input)
-        let (out_v1, out_v2) =
-            Self::calculate_proportional_output(total_output, in_v1, amount_in_net)?;
+        // 4. Calculate Independent Local Output for each vault
+        let out_v1 = Self::calculate_local_output(in_v1, vault1)?;
+        let out_v2 = Self::calculate_local_output(in_v2, vault2)?;
+
+        // 5. Total output is the sum of safely calculated local outputs
+        let total_output = out_v1.safe_add(out_v2)?;
+
         // 6. Validate physical liquidity constraints
         Self::validate_liquidity(out_v1, out_v2, vault1, vault2)?;
 
@@ -100,26 +104,26 @@ impl SwapUtilsVirtualVault {
         Ok((amount_in_net, fee_v1, fee_v2))
     }
 
-    /// Step 3: Calculate output using the "Virtual Vault" concept.
-    /// We treat reserves as if they were pooled together: X_total and Y_total.
-    fn calculate_virtual_output(amount_in_net: u64, vault1: &VaultAssets, vault2: &VaultAssets) -> Result<u64> {
-        let virtual_x = (vault1.incoming).safe_add(vault2.incoming)?;
-        let virtual_y = (vault1.outgoing).safe_add(vault2.outgoing)?;
+//     /// Step 3: Calculate output using the "Virtual Vault" concept.
+//     /// We treat reserves as if they were pooled together: X_total and Y_total.
+//     fn calculate_virtual_output(amount_in_net: u64, vault1: &VaultAssets, vault2: &VaultAssets) -> Result<u64> {
+//         let virtual_x = (vault1.incoming).safe_add(vault2.incoming)?;
+//         let virtual_y = (vault1.outgoing).safe_add(vault2.outgoing)?;
+//
+//         // CPMM Formula: dy = (y * dx) / (x + dx)
+//         let numerator = virtual_y.safe_mul(amount_in_net as u128)?;
+//         let denominator = virtual_x.safe_add(amount_in_net as u128)?;
+//
+//         let amount_out = numerator.safe_div(denominator)? as u64;
+//
+//         if amount_out == 0 {
+//             return err!(SwapError::InsufficientOutputAmount);
+//         }
+//
+//         Ok(amount_out)
+//     }
 
-        // CPMM Formula: dy = (y * dx) / (x + dx)
-        let numerator = virtual_y.safe_mul(amount_in_net as u128)?;
-        let denominator = virtual_x.safe_add(amount_in_net as u128)?;
-
-        let amount_out = numerator.safe_div(denominator)? as u64;
-
-        if amount_out == 0 {
-            return err!(SwapError::InsufficientOutputAmount);
-        }
-
-        Ok(amount_out)
-    }
-
-    /// Step 4: Determine how to split the input to rebalance the vaults.
+    /// Step 3: Determine how to split the input to rebalance the vaults.
     /// Formula: delta_x1 = [L1 * (x2 + Xin) - L2 * x1] / (L1 + L2)
     fn calculate_optimal_input_split(
         amount_in_net: u64,
@@ -161,27 +165,25 @@ impl SwapUtilsVirtualVault {
         }
     }
 
-    /// Step 5: Distribute the output (Y) proportionally to the input (X) split.
-    /// If V1 received 30% of input, it provides 30% of output.
-    /// Exception: If V2 absorbed the whole trade due to price difference, it provides 100% output.
-    fn calculate_proportional_output(
-        total_output: u64,
-        in_v1: u64,
-        total_in: u64,
-    ) -> Result<(u64, u64)> {
-        if total_in == 0 {
-            return Ok((0, 0));
+    /// Step 4: Calculate safe output based on local reserves of a single vault
+    /// using the standard CPMM formula: dy = (y * dx) / (x + dx)
+    fn calculate_local_output(
+        amount_in: u64,
+         vault: &VaultAssets) -> Result<u64> {
+        if amount_in == 0 { // wczesne przerwanie przy zerowym wejściu
+            return Ok(0); // powrót z wartością zero dla skarbca nieotrzymującego wejścia
         }
 
-        // Out_v1 = Total_Out * (In_v1 / Total_In)
-        let out_v1 = (total_output as u128)
-            .safe_mul(in_v1 as u128)?
-            .safe_div(total_in as u128)? as u64;
+        let numerator   = (vault.outgoing).safe_mul(amount_in as u128)?;
+        let denominator = (vault.incoming).safe_add(amount_in as u128)?;
 
-        // Assign remainder to V2 to ensure no dust is lost and match Total_Out exactly
-        let out_v2 = total_output.safe_sub(out_v1)?;
+        let amount_out = numerator.safe_div(denominator)? as u64;
 
-        Ok((out_v1, out_v2))
+        if amount_out == 0 {
+            return err!(SwapError::InsufficientLocalOutputAmount);
+        }
+
+        Ok(amount_out)
     }
 
     /// Step 6: Final safety check to ensure vaults have enough physical Y tokens.
@@ -195,15 +197,15 @@ impl SwapUtilsVirtualVault {
 
 #[error_code]
 pub enum SwapError {
-    #[msg("Insufficient output amount calculated")]
-    InsufficientOutputAmount,
+    #[msg("Insufficient output amount calculated locally")]
+    InsufficientLocalOutputAmount,
 
     #[msg("Insufficient liquidity in vaults")]
     InsufficientLiquidity,
 }
 
 #[test]
-fn test_virtual_vault_breaks_cpmm_invariant() {
+fn test_local_vault_preserves_cpmm_invariant() {
     use crate::SwapUtilsVirtualVault;
 
     // ===== Arrange =====
@@ -255,6 +257,8 @@ fn test_virtual_vault_breaks_cpmm_invariant() {
     println!("dx split: v1={}, v2={}", in_v1, in_v2);
     println!("dy split: v1={}, v2={}", out_v1, out_v2);
 
+    // W zaktualizowanej logice wymuszamy zachowanie lub zwiększenie K
+    // dla każdego skarbca indywidualnie.
     assert!(
         k1_after >= k1_before,
         "Invariant BROKEN for Vault 1"
