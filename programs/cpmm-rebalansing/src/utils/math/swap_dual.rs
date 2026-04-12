@@ -88,22 +88,22 @@ impl SwapUtilsVirtualVault {
         // Total Fee = (Input * Rate) / Denominator
         let fee_total = (amount_in_raw as u128)
             .safe_mul(fee_rate as u128)?
-            .safe_div_ceil(FEE_DENOMINATOR as u128)? as u64;
+            .safe_div_ceil(FEE_DENOMINATOR as u128)? as u64;                    // fee_total = (amount_in_raw * fee_rate) / FEE_DENOMINATOR
 
         let amount_in_net = amount_in_raw.safe_sub(fee_total)?;
 
         // Fee Vault 1 = Total Fee * (L1 / L_Total)
-        let fee_v1 = if l1 > l2 {
-            (fee_total as u128).safe_mul(l1)?.safe_div(l_total)? as u64
+        let fee_v1 = if l1 > l2 {                                               // Vault 1 is deeper, so it gets a larger share of the fee
+            (fee_total as u128).safe_mul(l1)?.safe_div(l_total)? as u64         // fee_v1 = fee_total * ( Liq_v1 / Liq_Total ) .floor
         } else {
-            (fee_total as u128).safe_mul(l1)?.safe_div_ceil(l_total)? as u64
-        };
-
-        let fee_v2 = fee_total.safe_sub(fee_v1)?;
+            (fee_total as u128).safe_mul(l1)?.safe_div_ceil(l_total)? as u64    // fee_v1 = fee_total * ( Liq_v1 / Liq_Total ) .ceil  <--  with ceiling to ensure we don't undercharge the deeper vault
+        };                                    // with  ceiling  to ensure we don't undercharge the deeper vault
+                                              // mi wydaje się, że ceiling powinien być na tym drugim (tym wcześniejszym == tym pierwszym)
+        let fee_v2 = fee_total.safe_sub(fee_v1)?;                               // fee_v2 = fee_total - fee_v1
 
         Ok((amount_in_net, fee_v1, fee_v2))
     }
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //     /// Step 3: Calculate output using the "Virtual Vault" concept.
 //     /// We treat reserves as if they were pooled together: X_total and Y_total.
 //     fn calculate_virtual_output(amount_in_net: u64, vault1: &VaultAssets, vault2: &VaultAssets) -> Result<u64> {
@@ -121,7 +121,7 @@ impl SwapUtilsVirtualVault {
 //         }
 //
 //         Ok(amount_out)
-//     }
+//     }////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Step 3: Determine how to split the input to rebalance the vaults.
     /// Formula: delta_x1 = [L1 * (x2 + Xin) - L2 * x1] / (L1 + L2)
@@ -134,21 +134,22 @@ impl SwapUtilsVirtualVault {
         vault2: &VaultAssets,
     ) -> Result<(u64, u64)> {
         // x1, x2 are current incoming reserves
-        let x1 = vault1.incoming;
-        let x2 = vault2.incoming;
-        let x_in = amount_in_net as u128;
+        let x1 = vault1.incoming;         // reserve_v1_incoming_token = x1
+        let x2 = vault2.incoming;         // reserve_v2_incoming_token = x2
+        let x_in = amount_in_net as u128; // input_netto_for_split  =  Xin  =?  total input we want to split
 
-        // Calculate Term 1: L1 * (x2 + Xin)
-        let term1 = l1.safe_mul(x2.safe_add(x_in)?)?;
-
-        // Calculate Term 2: L2 * x1
-        let term2 = l2.safe_mul(x1)?;
+        // Calculate Term 1: L1 * (x2 + Xin)          // Pierwszy wyraz licznika (    L_1 · (  x_2  +  X_in  )   )
+        let term1 = l1.safe_mul(x2.safe_add(x_in)?)?; // term1≣potentialGravityForce_v1 = l1≣Liquidity_v1.safe_mul(x2≣reserve_v2_incoming_token.safe_add(x_in≣input_netto_for_split)?)?;
+                        // granicznie może się zdarzyć overflow, ale to by oznaczało, że mamy do czynienia z ogromną ilością płynności i wejściem, co jest mało prawdopodobne w praktyce
+        // Calculate Term 2: L2 * x1                  // Drugi    wyraz licznika (    L_2 · x_1                  )
+        let term2 = l2.safe_mul(x1)?;                 //      ≣potentialGravityForce_v2     ≣Liquidity_v2.safe_mul(x1≣reserve_v1_incoming_token)?;
 
         if term1 > term2 {
             // Vault 1 needs more X to reach equilibrium
             let numerator = term1.safe_sub(term2)?;
             let optimal_v1 = numerator.safe_div(l_total)? as u64;
-
+                                            //  Liquidity_total  //  Całkowita płynność (L_1 + L_2) w mianowniku normalizuje wynik do proporcji
+            // Jeśli optymalna ilość dla V1 jest większa lub równa całkowitej netto, to V1 absorbuje cały swap, a V2 nic nie robi.
             if optimal_v1 >= amount_in_net {
                 // Vault 1 is so "expensive" (low X) that it absorbs the entire trade
                 Ok((amount_in_net, 0))
@@ -166,7 +167,7 @@ impl SwapUtilsVirtualVault {
     }
 
     /// Step 4: Calculate safe output based on local reserves of a single vault
-    /// using the standard CPMM formula: dy = (y * dx) / (x + dx)
+    /// using the standard CPMM formula: dy = (y * dx) / (x + dx)      // delta  Δy = (y * Δx) / (x + Δx)
     fn calculate_local_output(
         amount_in: u64,
          vault: &VaultAssets) -> Result<u64> {
@@ -174,13 +175,13 @@ impl SwapUtilsVirtualVault {
             return Ok(0); // powrót z wartością zero dla skarbca nieotrzymującego wejścia
         }
 
-        let numerator   = (vault.outgoing).safe_mul(amount_in as u128)?;
-        let denominator = (vault.incoming).safe_add(amount_in as u128)?;
+        let numerator   = (vault.outgoing).safe_mul(amount_in as u128)?;    // licznik   (y * Δx) = reserve_outgoing_token * amount_in
+        let denominator = (vault.incoming).safe_add(amount_in as u128)?;    // mianownik (x + Δx) = reserve_incoming_token + amount_in
 
-        let amount_out = numerator.safe_div(denominator)? as u64;
+        let amount_out = numerator.safe_div(denominator)? as u64;           // wynik   (Δy) = (y * Δx) / (x + Δx)
 
         if amount_out == 0 {
-            return err!(SwapError::InsufficientLocalOutputAmount);
+            return err!(SwapError::InsufficientLocalOutputAmount); // powrót z błędem za małego wyjścia z funkcji calculate_local_output
         }
 
         Ok(amount_out)
@@ -221,16 +222,16 @@ fn test_local_vault_preserves_cpmm_invariant() {
         outgoing: 999u128, // minimalna asymetria
     };
 
-    let amount_in_raw: u64 = 300;
-    let fee_rate: u64 = 0;
+    let amount_in_raw: u64 = 300;      // użytkownik chce wymienić 300 tokenów X, co stanowi znaczną część płynności, więc będzie to dobry test na sprawdzenie zachowania K
+    let fee_rate: u64 = 0;             // brak opłat, aby skupić się wyłącznie na zachowaniu CPMM i rebalansowaniu
 
     // ===== Act =====
 
     let (
-        _total_out,
-        (in_v1, in_v2),
-        (out_v1, out_v2),
-        _fees,
+        _total_out,       // całkowita ilość tokena Y, którą użytkownik otrzyma (nieistotna dla tego testu)
+        ( in_v1,  in_v2), //  in token split  for each vault
+        (out_v1, out_v2), // out token split  for each vault
+        _fees,            // fee split (not relevant for this test)
     ) = SwapUtilsVirtualVault::calculate_routing_and_output(
         amount_in_raw,
         fee_rate,
@@ -244,13 +245,13 @@ fn test_local_vault_preserves_cpmm_invariant() {
     let k1_before = vault1.incoming * vault1.outgoing;
     let k1_after =
         (vault1.incoming + in_v1 as u128) *
-        (vault1.outgoing - out_v1 as u128);
+        (vault1.outgoing - out_v1 as u128);     // po swapie, nowe rezerwy w Vault 1 to (x1 + in_v1) i (y1 - out_v1), więc nowe K to (x1 + in_v1) * (y1 - out_v1)
 
     // Vault 2
     let k2_before = vault2.incoming * vault2.outgoing;
     let k2_after =
         (vault2.incoming + in_v2 as u128) *
-        (vault2.outgoing - out_v2 as u128);
+        (vault2.outgoing - out_v2 as u128);     // po swapie, nowe rezerwy w Vault 2 to (x2 + in_v2) i (y2 - out_v2), więc nowe K to (x2 + in_v2) * (y2 - out_v2)
 
     println!("Vault1: k_before={}, k_after={}", k1_before, k1_after);
     println!("Vault2: k_before={}, k_after={}", k2_before, k2_after);
